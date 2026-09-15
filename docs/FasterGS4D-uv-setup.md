@@ -101,3 +101,18 @@ python ./scripts/train.py -c configs/fastergs4d_mutant.yaml
 ```
 
 Set `TRAINING.GUI.ACTIVATE: false` in the config for headless runs.
+
+## Verified run
+
+`configs/fastergs4d_mutant.yaml` (the branch's own sample config, GUI disabled), 30 000
+iterations on the D-NeRF `mutant` scene, RTX 5060 Ti — while a second job occupied 10.8 GB of
+VRAM and most of the GPU:
+
+| | |
+|---|---|
+| Test PSNR / SSIM / LPIPS | 37.82 / 0.986 / 0.020 (20 views) |
+| Gaussians | 100 000 → 198 049 |
+| Peak VRAM | 1.84 GiB allocated (2.04 GiB reserved) |
+| Training time | 30:14 for 30 000 iterations (60.5 ms/iter) |
+
+The per-iteration time reflects heavy GPU contention, not the method's throughput.
