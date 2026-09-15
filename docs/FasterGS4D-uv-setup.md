@@ -116,3 +116,41 @@ VRAM and most of the GPU:
 | Training time | 30:14 for 30 000 iterations (60.5 ms/iter) |
 
 The per-iteration time reflects heavy GPU contention, not the method's throughput.
+
+## Viewing the result
+
+All paths are relative to the training output directory
+(`output/FasterGS4D/<config>_<timestamp>/`).
+
+**Still renders.** Training already writes `test_30000/rgb` (model) next to `test_30000/rgb_gt`
+(ground truth) — open them in any image viewer.
+
+**Novel trajectories.** `scripts/inference.py -d <output_dir> -s <trajectory>` renders any
+trajectory from `src/Visual/Trajectories/`: `bullet_time` (lemniscate orbit with time
+replaying), `spiral_path`, `fixed_view`, `ellipse_path`, `fancy_zoom`, `novel_view`,
+`stabilized_path`. Frames land in `inference/<trajectory>_<iterations>/rgb`.
+
+Note that on D-NeRF scenes the synthesised trajectories roll the camera: they derive an
+up-axis from the training poses, which are spread over a full hemisphere. The rendering is
+correct, the framing is not. `docs/time_sweep.py` avoids this by reusing a dataset camera
+verbatim and only advancing the timestamp, which is usually what you want for inspecting a
+dynamic reconstruction:
+
+```shell
+cd nerficg && source env.sh
+python <this_repo>/docs/time_sweep.py output/FasterGS4D/<run> <test_view_index> <n_frames>
+```
+
+**Video.** There is no ffmpeg dependency in this environment; `docs/make_video.py` turns a
+frame directory into an `.mp4` (OpenCV) plus a half-resolution `.gif` (Pillow):
+
+```shell
+python <this_repo>/docs/make_video.py <frame_dir> <output_stem> <fps>
+```
+
+**Interactive.** `python ./scripts/gui.py` opens the NeRFICG viewer, where the model can be
+flown around freely and scrubbed through time. It needs a desktop session — run it from a
+terminal on the machine's display, not over a plain SSH connection.
+
+**Other tools.** `scripts/convert_to_ply.py` exports the Gaussians for external viewers,
+though a .ply carries only a static frame of a 4D model.
