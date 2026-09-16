@@ -93,7 +93,23 @@ uv add "torch==${TORCH_VERSION}" torchvision numpy tqdm natsort pyyaml munch tab
        timm plotly pillow jax pyproj scikit-learn pycolmap \
        "cuda-python==12.8.*" PySDL3 numpy-quaternion platformdirs imgui-bundle pyopengl pip
 
+# ---------------------------------------------------------------- toolchain env file
+# uv owns Python and the venv, not the CUDA SDK; these settings are handed to each command
+# with `uv run --env-file .env`. uv sets PATH itself and ignores any PATH set here, so every
+# tool is named absolutely: torch calls $CUDA_HOME/bin/nvcc and forwards $CC to it via -ccbin.
+cat > .env <<EOF
+CUDA_HOME=$CUDA_HOME
+CUDA_PATH=$CUDA_HOME
+LD_LIBRARY_PATH=$CUDA_HOME/lib64
+CC=$NERFICG_ROOT/.toolchain/bin/gcc
+CXX=$NERFICG_ROOT/.toolchain/bin/g++
+CUDAHOSTCXX=$NERFICG_ROOT/.toolchain/bin/g++
+TORCH_CUDA_ARCH_LIST=12.0
+MAX_JOBS=8
+EOF
+
 # ---------------------------------------------------------------- build CUDA extensions
-# shellcheck source=/dev/null
-source "$NERFICG_ROOT/env.sh"
-python ./scripts/install.py -m FasterGS4D
+uv run --env-file .env python ./scripts/install.py -m FasterGS4D
+
+echo "Done. Train with:"
+echo "  cd $NERFICG_ROOT && uv run --env-file .env python ./scripts/train.py -c configs/<config>.yaml"

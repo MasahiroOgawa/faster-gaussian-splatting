@@ -35,7 +35,7 @@ nerficg/
 │   ├── bin/                 # gcc -> gcc-13, g++ -> g++-13 shims (nvcc calls them unversioned)
 │   └── cuda-13.2/           # nvcc + crt + nvvm + nvptxcompiler + cudart + cccl, ~600 MB
 ├── .venv/                   # uv-managed, Python 3.11
-├── env.sh                   # exports CUDA_HOME, PATH, CC/CXX/CUDAHOSTCXX, TORCH_CUDA_ARCH_LIST
+├── .env                     # CUDA_HOME, CC/CXX/CUDAHOSTCXX, TORCH_CUDA_ARCH_LIST
 ├── pyproject.toml           # replaces environments/py311_cu128.yaml
 └── src/Methods/FasterGS4D/  # the FasterGS4D branch of this repository
 ```
@@ -67,7 +67,24 @@ torchvision = { index = "pytorch-cu130" }
 
 `pip` is added as an explicit dependency because NeRFICG's `scripts/install.py` shells out to
 `pip install <extension_dir> --no-build-isolation` to build the CUDA extensions, and a `uv`
-virtualenv has no `pip` by default.
+virtualenv has no `pip` by default. `uv run` puts `.venv/bin` first on `PATH`, so that `pip`
+is the venv's own.
+
+### The toolchain variables, and why they are not on PATH
+
+uv owns Python and the virtualenv; it does not own a CUDA SDK. Those settings live in `.env`
+and are supplied per command with `uv run --env-file .env`, so no shell activation step is
+needed and there is no second, drifting copy of the environment.
+
+One constraint shapes the file: **`uv run` sets `PATH` itself** (venv first, then the
+inherited `PATH`) and discards any `PATH` assignment in the env file. Every tool is therefore
+named by absolute path rather than found on `PATH`. That works because torch invokes the
+compiler as `$CUDA_HOME/bin/nvcc` and forwards `$CC` to it via `-ccbin`, so nothing needs to
+be looked up. Other variables from the env file — `LD_LIBRARY_PATH`, `CUDA_HOME`,
+`TORCH_CUDA_ARCH_LIST` — pass through untouched.
+
+`TORCH_CUDA_ARCH_LIST=12.0` restricts codegen to `sm_120`, which is all this GPU can run and
+keeps compile times down.
 
 ## CCCL 3.0 patch
 
@@ -96,9 +113,11 @@ These are self-calibrated (poses ship with the scene) so no COLMAP run is needed
 
 ```shell
 cd nerficg
-source env.sh
-python ./scripts/train.py -c configs/fastergs4d_mutant.yaml
+uv run --env-file .env python ./scripts/train.py -c configs/fastergs4d_mutant.yaml
 ```
+
+The same prefix applies to `install.py`, `inference.py` and `gui.py`. To avoid repeating it,
+export `UV_ENV_FILE=.env` once per shell and plain `uv run <cmd>` picks the file up.
 
 Set `TRAINING.GUI.ACTIVATE: false` in the config for headless runs.
 
@@ -137,18 +156,18 @@ verbatim and only advancing the timestamp, which is usually what you want for in
 dynamic reconstruction:
 
 ```shell
-cd nerficg && source env.sh
-python <this_repo>/docs/time_sweep.py output/FasterGS4D/<run> <test_view_index> <n_frames>
+cd nerficg
+uv run --env-file .env python <this_repo>/docs/time_sweep.py output/FasterGS4D/<run> <test_view_index> <n_frames>
 ```
 
 **Video.** There is no ffmpeg dependency in this environment; `docs/make_video.py` turns a
 frame directory into an `.mp4` (OpenCV) plus a half-resolution `.gif` (Pillow):
 
 ```shell
-python <this_repo>/docs/make_video.py <frame_dir> <output_stem> <fps>
+uv run --env-file .env python <this_repo>/docs/make_video.py <frame_dir> <output_stem> <fps>
 ```
 
-**Interactive.** `python ./scripts/gui.py` opens the NeRFICG viewer, where the model can be
+**Interactive.** `uv run --env-file .env python ./scripts/gui.py` opens the NeRFICG viewer, where the model can be
 flown around freely and scrubbed through time. It needs a desktop session — run it from a
 terminal on the machine's display, not over a plain SSH connection.
 
