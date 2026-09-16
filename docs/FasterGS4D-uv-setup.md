@@ -88,20 +88,28 @@ keeps compile times down.
 
 ## CCCL 3.0 patch
 
-`cub::Max` was removed in CCCL 3.0. `cuda::maximum<>` is the replacement and has existed since
-CCCL 2.2 (CUDA 12.3), so the change is backward compatible with the CUDA 12.8 setup upstream
-targets:
+`cub::Max` was removed in CCCL 3.0, which ships with CUDA 13, so
+`kernels_forward.cuh` no longer compiles there. Its documented replacement,
+`cuda::maximum`, is **not** a drop-in: CUDA 12.8 ships CCCL 2.7, whose
+`<cuda/functional>` provides only `proclaim_return_type`. Neither name compiles against
+both toolkits. `BlockReduce` accepts any binary functor, so a local one is portable
+without a version guard:
 
 ```diff
- #include <cooperative_groups.h>
-+#include <cuda/functional>  // cuda::maximum; cub::Max was removed in CCCL 3.0 (CUDA 13)
- namespace cg = cooperative_groups;
+ namespace faster_gs::rasterization::kernels::forward {
+ 
++    struct MaxOp {
++        __device__ __forceinline__ uint operator()(const uint a, const uint b) const { return a > b ? a : b; }
++    };
++
 @@
 -        n_processed_and_used = BlockReduce(temp_storage).Reduce(n_processed_and_used, cub::Max());
-+        n_processed_and_used = BlockReduce(temp_storage).Reduce(n_processed_and_used, cuda::maximum<>{});
++        n_processed_and_used = BlockReduce(temp_storage).Reduce(n_processed_and_used, MaxOp());
 ```
 
-Applied to the `FasterGS4D` branch as `docs/patches/fastergs4d-cccl3.patch`.
+The same `cub::Max` call exists on the `main`, `FasterGSFused` and `FasterGSTestbed`
+branches, so all four are affected. Applied here as
+`docs/patches/fastergs4d-cccl3.patch`.
 
 ## Dataset
 
