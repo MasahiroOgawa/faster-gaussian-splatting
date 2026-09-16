@@ -4,19 +4,21 @@ The upstream instructions assume Conda plus a system-wide CUDA 12.8 SDK. This no
 working setup that uses `uv` for the Python environment and a **local, root-free CUDA
 toolchain**, on a machine where the stock instructions cannot work.
 
-Reference machine: RTX 5060 Ti (`sm_120`), Ubuntu with glibc 2.43, gcc 13, driver 595.71
-(CUDA 13.2), system `nvcc` 12.4, no Conda.
+Verified on: RTX 5060 Ti (`sm_120`), Ubuntu with glibc 2.43, gcc 13, driver 595.71,
+system `nvcc` 12.4, no Conda. Nothing below is specific to that machine — the GPU
+architecture is detected and all paths are relative to the checkout.
 
 ## Why the stock recipe fails here
 
-1. **`sm_120` needs nvcc ≥ 12.8.** The distro `nvcc` is 12.4, whose newest target is `sm_90a`,
-   so nothing it produces will run on Blackwell.
+1. **Blackwell (`sm_120`) needs nvcc ≥ 12.8.** Distributions still ship 12.4, whose newest
+   target is `sm_90a`, so nothing it produces will run on such a GPU.
 2. **glibc ≥ 2.41 collides with CUDA ≤ 13.0 headers.** glibc added the C23 functions
    `cospi`/`sinpi`/`rsqrt` to `<math.h>`, declared `noexcept(true)`. CUDA's
    `crt/math_functions.h` declares the same names without an exception specification, so every
    `.cu` file fails with *"exception specification is incompatible with that of previous
    function"*. CUDA 13.0 fixes `cospi`/`sinpi` but not `rsqrt`; **CUDA 13.2 is the first
-   release that compiles cleanly against glibc 2.43.**
+   release that compiles cleanly against such a glibc.** (Checked: 12.8, 12.9 and 13.0 all
+   fail; 13.0 fixes `cospi`/`sinpi` but not `rsqrt`.)
 3. **A CUDA 13 toolchain needs a CUDA 13 PyTorch.** `torch.utils.cpp_extension` refuses to
    build when the nvcc major version differs from the one PyTorch was built with, so the
    pinned `torch==2.8.0+cu128` has to become `torch==2.9.1+cu130` (a minor-version skew of
@@ -83,8 +85,13 @@ compiler as `$CUDA_HOME/bin/nvcc` and forwards `$CC` to it via `-ccbin`, so noth
 be looked up. Other variables from the env file — `LD_LIBRARY_PATH`, `CUDA_HOME`,
 `TORCH_CUDA_ARCH_LIST` — pass through untouched.
 
-`TORCH_CUDA_ARCH_LIST=12.0` restricts codegen to `sm_120`, which is all this GPU can run and
-keeps compile times down.
+`TORCH_CUDA_ARCH_LIST` is detected from the installed GPU by the setup script rather than
+hardcoded; it restricts codegen to the one architecture that can run here and keeps compile
+times down. Unset it to build for everything torch supports.
+
+Paths in `.env` are written as `${PWD}/...`. uv expands them at launch, so the file itself
+contains no absolute paths while subprocesses still receive absolute ones — run `uv run` from
+the repository root.
 
 ## CCCL 3.0 patch
 

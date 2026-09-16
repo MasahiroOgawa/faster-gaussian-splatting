@@ -14,7 +14,7 @@
 # Everything lands inside $NERFICG_ROOT; nothing is installed system-wide.
 set -euo pipefail
 
-NERFICG_ROOT="${NERFICG_ROOT:-$HOME/proj/study/nerficg}"
+NERFICG_ROOT="${NERFICG_ROOT:-$PWD/nerficg}"   # override to place the checkout elsewhere
 CUDA_VERSION="${CUDA_VERSION:-13.2.1}"     # CUDA redistributable manifest to pull nvcc from
 TORCH_VERSION="${TORCH_VERSION:-2.9.1}"    # newest torch with a cu130 wheel for Python 3.11
 HOST_GCC="${HOST_GCC:-13}"                 # major version of the gcc/g++ to use as nvcc host compiler
@@ -98,16 +98,23 @@ uv add "torch==${TORCH_VERSION}" torchvision numpy tqdm natsort pyyaml munch tab
 # uv owns Python and the venv, not the CUDA SDK; these settings are handed to each command
 # with `uv run --env-file .env`. uv sets PATH itself and ignores any PATH set here, so every
 # tool is named absolutely: torch calls $CUDA_HOME/bin/nvcc and forwards $CC to it via -ccbin.
-cat > .env <<EOF
-CUDA_HOME=$CUDA_HOME
-CUDA_PATH=$CUDA_HOME
-LD_LIBRARY_PATH=$CUDA_HOME/lib64
-CC=$NERFICG_ROOT/.toolchain/bin/gcc
-CXX=$NERFICG_ROOT/.toolchain/bin/g++
-CUDAHOSTCXX=$NERFICG_ROOT/.toolchain/bin/g++
-TORCH_CUDA_ARCH_LIST=12.0
+# TORCH_CUDA_ARCH_LIST is detected rather than hardcoded: building only for the installed
+# GPU keeps compile times down. Unset it to build for every architecture torch supports.
+ARCH="$(uv run python -c 'import torch; print("%d.%d" % torch.cuda.get_device_capability(0))')"
+
+# Quoted heredoc: ${PWD} stays literal in the file and is expanded by uv at run time, so .env
+# holds no absolute paths and resolves against whatever directory `uv run` is invoked from.
+cat > .env <<'EOF'
+CUDA_HOME=${PWD}/.toolchain/CUDA_DIR
+CUDA_PATH=${PWD}/.toolchain/CUDA_DIR
+LD_LIBRARY_PATH=${PWD}/.toolchain/CUDA_DIR/lib64
+CC=${PWD}/.toolchain/bin/gcc
+CXX=${PWD}/.toolchain/bin/g++
+CUDAHOSTCXX=${PWD}/.toolchain/bin/g++
 MAX_JOBS=8
 EOF
+sed -i "s|CUDA_DIR|cuda-${CUDA_VERSION%.*}|g" .env
+echo "TORCH_CUDA_ARCH_LIST=$ARCH" >> .env
 
 # ---------------------------------------------------------------- build CUDA extensions
 uv run --env-file .env python ./scripts/install.py -m FasterGS4D
