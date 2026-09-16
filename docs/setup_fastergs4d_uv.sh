@@ -20,7 +20,7 @@ TORCH_VERSION="${TORCH_VERSION:-2.9.1}"    # newest torch with a cu130 wheel for
 HOST_GCC="${HOST_GCC:-13}"                 # major version of the gcc/g++ to use as nvcc host compiler
 
 # ---------------------------------------------------------------- framework + method
-if [[ ! -d $NERFICG_ROOT ]]; then
+if [[ ! -d $NERFICG_ROOT/.git ]]; then
   git clone https://github.com/nerficg-project/nerficg.git --recursive "$NERFICG_ROOT"
 fi
 if [[ ! -d $NERFICG_ROOT/src/Methods/FasterGS4D ]]; then
@@ -29,6 +29,7 @@ if [[ ! -d $NERFICG_ROOT/src/Methods/FasterGS4D ]]; then
     "$NERFICG_ROOT/src/Methods/FasterGS4D"
 fi
 cd "$NERFICG_ROOT"
+NERFICG_ROOT="$PWD"  # absolute from here on: .env below bakes in these paths
 
 # ---------------------------------------------------------------- host compiler shims
 # nvcc invokes plain `gcc`/`g++`; distros that ship only versioned binaries need symlinks.
@@ -87,7 +88,7 @@ torch = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
 TOML
 fi
-uv venv --python 3.11
+[[ -d .venv ]] || uv venv --python 3.11  # recreating it would discard already-built CUDA extensions
 uv add "torch==${TORCH_VERSION}" torchvision numpy tqdm natsort pyyaml munch tabulate wandb \
        opencv-python kornia torchmetrics lpips einops "setuptools==80.10.2" plyfile matplotlib \
        timm plotly pillow jax pyproj scikit-learn pycolmap \
