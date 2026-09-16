@@ -114,9 +114,10 @@ without a version guard:
 +        n_processed_and_used = BlockReduce(temp_storage).Reduce(n_processed_and_used, MaxOp());
 ```
 
-The same `cub::Max` call exists on the `main`, `FasterGSFused` and `FasterGSTestbed`
-branches, so all four are affected. Applied here as
-`docs/patches/fastergs4d-cccl3.patch`.
+The same `cub::Max` call exists on `main`, `FasterGSFused` and `FasterGSTestbed`. All four
+were built against CUDA 13.2: each fails with that error as its only distinct diagnostic and
+compiles cleanly once patched. `FasterGSBasis` does not use it. Applied here as
+`docs/patches/fastergs4d-cccl3.patch`; upstreamed from the `fix/cccl3-cub-max` branch.
 
 ## Dataset
 
