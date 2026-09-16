@@ -11,6 +11,14 @@ namespace cg = cooperative_groups;
 
 namespace faster_gs::rasterization::kernels::forward {
 
+    // CCCL 3.0, shipped with CUDA 13, removed cub::Max. Its replacement cuda::maximum is
+    // absent from CCCL 2.x, so neither name works across both. BlockReduce accepts any
+    // binary functor, which does.
+    struct MaxOp {
+        template <class T>
+        __device__ __forceinline__ T operator()(const T a, const T b) const { return a > b ? a : b; }
+    };
+
     __global__ void preprocess_cu(
         const float3* __restrict__ means,
         const float3* __restrict__ scales,
@@ -493,7 +501,7 @@ namespace faster_gs::rasterization::kernels::forward {
         // max reduce the number of processed Gaussians per tile
         typedef cub::BlockReduce<uint, config::tile_width, cub::BLOCK_REDUCE_WARP_REDUCTIONS, config::tile_height> BlockReduce;
         __shared__ typename BlockReduce::TempStorage temp_storage;
-        n_processed_and_used = BlockReduce(temp_storage).Reduce(n_processed_and_used, cub::Max());
+        n_processed_and_used = BlockReduce(temp_storage).Reduce(n_processed_and_used, MaxOp());
         if (thread_rank == 0) tile_max_n_processed[tile_idx] = n_processed_and_used;
     }
 
